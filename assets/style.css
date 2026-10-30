@@ -34,3 +34,10 @@
  .time-entries>div{font-size:14px}.time-entries small,.dialog-time>span{font-size:12px}
  .historical-session{padding:18px}.prompt-text{font-size:13px}
 }
+
+/* v1.1: retain existing visual language, keep secondary actions in dialogs. */
+.mode-hint{font-size:11px;margin:12px 0 0;overflow-wrap:anywhere}.mode-hint small{display:block;font-size:10px;line-height:1.5;margin-top:4px;color:var(--muted)}
+.card-actions .primary{flex:1;min-width:0}.action-menu{display:grid;gap:10px}.danger-button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border-radius:11px;padding:12px 16px;background:#f5e8e3;color:#8f5146;border:1px solid #e8cbc3;overflow-wrap:anywhere}
+.danger-button:hover{background:#ecd7d0}.week-tools{display:flex;justify-content:flex-end;margin:-14px 0 18px}.archived-session{border-top:1px solid var(--line);padding:16px 0;min-width:0;overflow-wrap:anywhere}.archived-session>strong{display:block}.archived-session p{font-size:12px;margin:6px 0}.cancelled-label{display:inline-block;background:#ecefea;color:#64716a;font-size:11px;border-radius:6px;padding:4px 8px;margin-bottom:8px}
+.review-list{padding-left:22px;overflow-wrap:anywhere}.review-list li{margin-bottom:8px}.dialog-body .copy-fallback{width:100%;max-width:100%;min-height:220px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:16px}.dialog-body .button-row>*,.dialog-body .action-menu>*{max-width:100%;min-width:0}.dialog-body .check-field{align-items:flex-start}.dialog-body .check-field input{flex-shrink:0}.dialog-body a.button{white-space:normal}.summary-bottom{flex-wrap:wrap}
+@media(max-width:600px){.week-tools{justify-content:stretch}.week-tools>*{width:100%}.action-menu>*{width:100%}.mode-hint small{font-size:11px}.card-actions .primary{padding-left:10px;padding-right:10px}}

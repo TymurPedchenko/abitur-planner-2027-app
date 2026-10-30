@@ -1,4 +1,6 @@
 export const PROJECT_CONFIG_KEY = 'abitur2027.planner.projects.v1';
+/** Separate opt-in so saving legacy project links cannot reset a launch preference. */
+export const CHATGPT_LAUNCH_KEY = 'abitur2027.planner.chatgpt-launch.v1';
 const SUBJECTS = ['Informatik', 'Mathematik'];
 const MAX_CONFIG_BYTES = 8192;
 export function emptyProjectConfig() {
@@ -73,5 +75,36 @@ export function saveProjectConfig(config) {
     }
     catch {
         throw new Error('Не удалось сохранить ссылки на устройстве. Прежние настройки и история занятий не изменены.');
+    }
+}
+export function emptyChatGPTLaunchConfig() {
+    return { version: 1, shortcutEnabled: false };
+}
+function normalizedLaunchConfig(value) {
+    if (!isRecord(value) || !exactKeys(value, ['version', 'shortcutEnabled']) || value.version !== 1 || typeof value.shortcutEnabled !== 'boolean') {
+        throw new Error('Настройка запуска ChatGPT повреждена или имеет неизвестную версию.');
+    }
+    return { version: 1, shortcutEnabled: value.shortcutEnabled };
+}
+export function loadChatGPTLaunchConfig() {
+    try {
+        const raw = localStorage.getItem(CHATGPT_LAUNCH_KEY);
+        if (raw === null)
+            return { config: emptyChatGPTLaunchConfig() };
+        if (new TextEncoder().encode(raw).byteLength > MAX_CONFIG_BYTES)
+            throw new Error('Настройка слишком большая.');
+        return { config: normalizedLaunchConfig(JSON.parse(raw)) };
+    }
+    catch {
+        return { config: emptyChatGPTLaunchConfig(), error: 'Не удалось прочитать настройку запуска ChatGPT. Исходные данные не удалены; открытие и копирование вручную доступны.' };
+    }
+}
+export function saveChatGPTLaunchConfig(config) {
+    const next = normalizedLaunchConfig(config);
+    try {
+        localStorage.setItem(CHATGPT_LAUNCH_KEY, JSON.stringify(next));
+    }
+    catch {
+        throw new Error('Не удалось сохранить настройку запуска ChatGPT. Прежние настройки не изменены.');
     }
 }

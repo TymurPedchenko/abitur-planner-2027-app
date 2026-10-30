@@ -1,7 +1,7 @@
-/* Generated app shell, version d42eea87e80b0cab. User data lives outside this cache. */
-const ASSETS = ["./assets/style.css","./icons/apple-touch-icon.png","./icons/icon-192.png","./icons/icon-512.png","./icons/icon.svg","./icons/maskable-512.png","./index.html","./manifest.webmanifest","./schemas/backup.schema.json.js","./schemas/planning_bundle.schema.json.js","./schemas/week_plan.schema.json.js","./src/main.js","./src/model.js","./src/planning.js","./src/project-config.js","./src/storage.js","./src/types.js","./src/validation.js","./vendor/LICENSE-ajv.txt","./vendor/ajv.js"];
+/* Generated app shell, version 1aa2c5ee2473519d. User data lives outside this cache. */
+const ASSETS = ["./assets/style.css","./icons/apple-touch-icon.png","./icons/icon-192.png","./icons/icon-512.png","./icons/icon.svg","./icons/maskable-512.png","./index.html","./manifest.webmanifest","./schemas/backup.schema.json.js","./schemas/planning_bundle.schema.json.js","./schemas/week_plan.schema.json.js","./src/chatgpt.js","./src/main.js","./src/model.js","./src/planning.js","./src/project-config.js","./src/storage.js","./src/types.js","./src/validation.js","./vendor/LICENSE-ajv.txt","./vendor/ajv.js"];
 const PREFIX = 'abitur-planner:' + encodeURIComponent(self.registration.scope) + ':';
-const CACHE = PREFIX + 'd42eea87e80b0cab';
+const CACHE = PREFIX + '1aa2c5ee2473519d';
 const URLS = ASSETS.map(path => new URL(path, self.registration.scope).href);
 const INDEX = new URL('./index.html', self.registration.scope).href;
 

@@ -2,7 +2,7 @@ import Ajv from "../vendor/ajv.js";
 import weekSchema from "../schemas/week_plan.schema.json.js";
 import bundleSchema from "../schemas/planning_bundle.schema.json.js";
 import backupSchema from "../schemas/backup.schema.json.js";
-import { addDays, isDate, monday } from "./model.js";
+import { addDays, isDate, monday, requiresHistoryPreservation } from "./model.js";
 export const MAX_PLAN_BYTES = 2 * 1024 * 1024;
 export const MAX_BACKUP_BYTES = 10 * 1024 * 1024;
 const ajv = new Ajv({ allErrors: true, jsonPointers: true });
@@ -19,7 +19,7 @@ function parse(raw, max) {
         throw new Error('Не удалось прочитать JSON. Проверьте скобки, кавычки и отсутствие текста вокруг JSON.');
     }
 }
-function fail(check, label) { const first = check.errors?.slice(0, 3).map(e => `${e.dataPath || '/'}: ${e.message}`).join('; '); throw new Error(`${label} не соответствует схеме версии 1. ${first ?? ''}`); }
+function fail(check, label) { const first = check.errors?.slice(0, 3).map(e => `${e.dataPath || '/'}: ${e.message}`).join('; '); throw new Error(`${label} не соответствует поддерживаемой схеме. ${first ?? ''}`); }
 const forbiddenIds = new Set(['__proto__', 'prototype', 'constructor']);
 function safeId(id) { if (forbiddenIds.has(id))
     throw new Error('Недопустимый идентификатор занятия.'); }
@@ -78,25 +78,93 @@ function validateSessionFacts(session) {
         throw new Error('Дата занятия не соответствует последнему переносу.');
 }
 export function validateState(value) {
-    const envelope = { backupVersion: 1, exportedAt: new Date().toISOString(), state: value };
+    const envelope = { backupVersion: 2, exportedAt: new Date().toISOString(), state: value };
     if (!validateBackup(envelope))
         fail(validateBackup, 'Сохранённые данные');
     const state = value;
     if (monday(state.wizard.weekStart) !== state.wizard.weekStart)
         throw new Error('Неделя мастера должна начинаться в понедельник.');
-    for (const [id, session] of Object.entries(state.sessions)) {
+    const validateStoredSession = (id, session) => {
         safeId(id);
         if (id !== session.plan.id)
             throw new Error('Идентификатор сохранённого занятия повреждён.');
         validateSessionFacts(session);
+        if (session.importOrigin) {
+            safeId(session.importOrigin.planId);
+            if (monday(session.importOrigin.weekStart) !== session.importOrigin.weekStart)
+                throw new Error('Некорректная исходная неделя занятия.');
+        }
+        if (session.importOrigin && session.legacyProvenanceUnknown)
+            throw new Error('Происхождение занятия одновременно подтверждено и неизвестно.');
+    };
+    for (const [id, session] of Object.entries(state.sessions))
+        validateStoredSession(id, session);
+    for (const [id, record] of Object.entries(state.deletedSessions)) {
+        validateStoredSession(id, record.session);
+        if (Object.hasOwn(state.sessions, id))
+            throw new Error('Занятие одновременно присутствует и удалено.');
+        if (requiresHistoryPreservation(record.session) || record.session.cancelledAt)
+            throw new Error('Нельзя хранить фактическую историю как удалённое пустое занятие.');
     }
     for (const [start, week] of Object.entries(state.weeks)) {
+        safeId(week.planId);
         if (monday(start) !== start)
             throw new Error('Некорректная неделя в сохранённых данных.');
         for (const date of week.restDates)
             if (date < start || date > addDays(start, 6))
                 throw new Error('Некорректная дата отдыха в сохранённых данных.');
+        for (const id of week.sessionIds) {
+            safeId(id);
+            const session = state.sessions[id] ?? state.deletedSessions[id]?.session;
+            if (!session || session.importOrigin?.weekStart !== start)
+                throw new Error('Нарушена связь занятия с импортированной неделей.');
+        }
     }
+    for (const session of [...Object.values(state.sessions), ...Object.values(state.deletedSessions).map(r => r.session)]) {
+        if (session.importOrigin) {
+            const week = state.weeks[session.importOrigin.weekStart];
+            if (!week || !week.sessionIds.includes(session.plan.id))
+                throw new Error('Исходный план занятия отсутствует или повреждён.');
+        }
+    }
+}
+/** Validate the old shape first. Loading migrates only in memory; storage owns the protected write. */
+export function migrateState(value) {
+    if (value && typeof value === 'object' && value.version === 2) {
+        validateState(value);
+        return structuredClone(value);
+    }
+    const envelope = { backupVersion: 1, exportedAt: new Date().toISOString(), state: value };
+    if (!validateBackup(envelope))
+        fail(validateBackup, 'Сохранённые данные');
+    const old = structuredClone(value);
+    const next = { ...old, version: 2, deletedSessions: {}, weeks: {} };
+    for (const session of Object.values(next.sessions))
+        session.legacyProvenanceUnknown = true;
+    for (const [start, week] of Object.entries(old.weeks))
+        next.weeks[start] = { ...week, sessionIds: [], provenanceKnown: false };
+    // A saved draft is the only v1 evidence of exact import membership; dates alone are insufficient.
+    try {
+        const draft = parseWeekPlan(old.wizard.importDraft), week = next.weeks[draft.weekStart];
+        if (week && week.planId === draft.planId) {
+            for (const plan of draft.sessions) {
+                const session = next.sessions[plan.id];
+                if (!session)
+                    continue;
+                const original = { ...session.plan, date: session.moves[0]?.from ?? session.plan.date };
+                const keys = Object.keys(plan);
+                if (keys.every(k => original[k] === plan[k]) && Object.keys(original).every(k => Object.hasOwn(plan, k))) {
+                    session.importOrigin = { weekStart: draft.weekStart, planId: draft.planId };
+                    delete session.legacyProvenanceUnknown;
+                    week.sessionIds.push(plan.id);
+                }
+            }
+            week.provenanceKnown = week.sessionIds.length === draft.sessions.length;
+        }
+    }
+    catch { /* Missing, invalid or stale draft is not enough evidence; leave all records untouched. */ }
+    validateState(next);
+    return next;
 }
 export function validateBundle(value) {
     if (!validatePlanning(value))
@@ -111,7 +179,5 @@ export function parseBackup(raw) {
     const value = parse(raw, MAX_BACKUP_BYTES);
     if (!validateBackup(value))
         fail(validateBackup, 'Резервная копия');
-    const state = value.state;
-    validateState(state);
-    return state;
+    return migrateState(value.state);
 }
